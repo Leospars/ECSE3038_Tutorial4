@@ -67,16 +67,12 @@ async def update_person(person_id: PyObjectID, person_req: PersonUpdate):
     person_id = ObjectId(person_id) # Convert to bson ObjectId for MongoDB query
     if not get_person(person_id):
         raise HTTPException(detail={"message": "Person not found"}, status_code=404)
+    
+    person_update = {k: v for k, v in person_req.model_dump().items() if v is not None}
 
     try: 
         coll = db.people
-        if person_req.name:
-            coll.update_one({"_id": person_id}, {"$set": {"name": person_req.name}})
-        if person_req.occupation:
-            coll.update_one({"_id": person_id}, {"$set": {"occupation": person_req.occupation}})
-        if person_req.address:
-            coll.update_one({"_id": person_id}, {"$set": {"address": person_req.address}})
-        
+        await coll.update_one({"_id": person_id}, {"$set": person_update})
         person = await coll.find_one({"_id": person_id})
         return Person(**person)
     except:

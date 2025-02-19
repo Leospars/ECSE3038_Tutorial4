@@ -37,22 +37,24 @@ async def create_person(person_req: Person):
     person = await db["people"].find_one({"_id": inserted_person.inserted_id})
     return Person(**person)
 
-@app.get("/person")
+@app.get("/persons")
 async def get_persons():
     person_collection = await db["people"].find().to_list(length=100)
     return PersonCollection(persons=person_collection)
 
-@app.get("/person/{person_id}")
+@app.get("/persons/{person_id}")
 async def get_person(person_id: PyObjectID):
-    person = await db["people"].find_one({"_id": ObjectId(person_id)})
-    if not person:
-        raise HTTPException({"message": "Person not found"}, status_code=404)
-
-
-@app.delete("/person/{person_id}")
+    try:
+        person = await db["people"].find_one({"_id": ObjectId(person_id)})
+        if not person:
+            raise HTTPException(detail={"message": "Person not found"}, status_code=404)
+        return Person(**person)
+    except:
+        raise HTTPException(detail={f"message": "Person not found"}, status_code=404)
+    
+@app.delete("/persons/{person_id}")
 async def delete_person(person_id: PyObjectID):
-    if await get_person(person_id) is None:
-        raise HTTPException(detail={"message": "Person not found"}, status_code=404)
+    await get_person(person_id) # Throws error if person not found
     
     await db["people"].delete_one({"_id": ObjectId(person_id)})
     return Response(status_code=204)
@@ -62,14 +64,12 @@ class PersonUpdate(BaseModel):
     occupation: str | None = None
     address: str | None = None
 
-@app.patch("/person/{person_id}")
+@app.patch("/persons/{person_id}")
 async def update_person(person_id: PyObjectID, person_req: PersonUpdate):
     person_id = ObjectId(person_id) # Convert to bson ObjectId for MongoDB query
-    if not get_person(person_id):
-        raise HTTPException(detail={"message": "Person not found"}, status_code=404)
-    
-    person_update = {k: v for k, v in person_req.model_dump().items() if v is not None}
+    await get_person(person_id)
 
+    person_update = {k: v for k, v in person_req.model_dump().items() if v is not None}
     try: 
         coll = db.people
         await coll.update_one({"_id": person_id}, {"$set": person_update})
